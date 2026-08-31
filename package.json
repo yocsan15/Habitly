@@ -1,0 +1,10 @@
+{
+  "name": "habit-tracker",
+  "private": true,
+  "scripts": {
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "db:generate": "pnpm --filter backend db:generate",
+    "db:migrate": "pnpm --filter backend db:migrate"
+  }
+}

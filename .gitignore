@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.expo/
+*.tsbuildinfo
+.env
+.env.local
+*.db
+*.db-journal
