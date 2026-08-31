@@ -22,3 +22,33 @@ export interface AuthResponse {
 export interface ApiError {
   error: string;
 }
+
+export type HabitFrequency = "daily" | "weekly" | "custom";
+
+export interface Habit {
+  id: string;
+  name: string;
+  description: string | null;
+  frequency: HabitFrequency;
+  color: string;
+  icon: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CreateHabitRequest {
+  name: string;
+  description?: string;
+  frequency?: HabitFrequency;
+  color?: string;
+  icon?: string;
+}
+
+export interface UpdateHabitRequest {
+  name?: string;
+  description?: string | null;
+  frequency?: HabitFrequency;
+  color?: string;
+  icon?: string;
+  active?: boolean;
+}

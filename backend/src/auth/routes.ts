@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { users } from "../db/schema.js";
+import { users } from "../db/schema/index.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import type { AuthResponse } from "shared-types";
 

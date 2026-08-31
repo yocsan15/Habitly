@@ -9,7 +9,7 @@ App multiplataforma (web + iOS + Android) para el seguimiento de hábitos person
 | Frontend (web + iOS + Android) | Expo (React Native) + Expo Router |
 | Backend | Fastify (Node.js + TypeScript) |
 | ORM | Drizzle ORM |
-| Base de datos | PostgreSQL (Docker / self-hosted) |
+| Base de datos | PostgreSQL (Supabase - cloud) |
 | Almacenamiento local / offline | SQLite (expo-sqlite) |
 | Autenticación | JWT (bcryptjs) |
 
@@ -30,43 +30,59 @@ Habittracker/
 │   └── drizzle/          # Migraciones SQL
 ├── packages/
 │   └── shared-types/     # Tipos TS compartidos (app + backend)
-└── docker-compose.yml    # PostgreSQL para desarrollo
+└── docker-compose.yml    # PostgreSQL local (opcional, para desarrollo)
 ```
 
 ## Requisitos
 
 - Node.js 18+
 - pnpm (`corepack enable` / `corepack prepare pnpm@latest --activate`)
-- Docker (para PostgreSQL)
+- Una base de datos PostgreSQL (recomendado: Supabase, plan gratuito)
 
 ## Puesta en marcha
 
-### 1. Instalar dependencias
+### 1. Configurar el entorno
+
+Copia el archivo de ejemplo y rellena tus credenciales:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+En `backend/.env`, pon la `DATABASE_URL` que te da tu proveedor de PostgreSQL
+(por ejemplo, la "Connection string" de Supabase) y un `JWT_SECRET` propio.
+
+> El archivo `.env` está en `.gitignore`, así que tus credenciales **no** se suben al repo.
+
+### 2. Instalar dependencias
 
 ```bash
 pnpm install
 ```
 
-### 2. Levantar PostgreSQL
+### 3. (Opcional) PostgreSQL local con Docker
+
+Si prefieres una BD local en vez de la nube:
 
 ```bash
 docker compose up -d
 ```
+y usa `postgresql://habit_user:habit_pass@localhost:5432/habit_tracker` como `DATABASE_URL`.
 
-### 3. Migraciones de base de datos
+### 4. Migraciones de base de datos
 
 ```bash
 pnpm run db:generate   # genera migraciones desde el schema Drizzle
 pnpm run db:migrate    # aplica las migraciones a la BD
 ```
 
-### 4. Backend
+### 5. Backend
 
 ```bash
 pnpm run dev:backend   # servidor en http://localhost:3001
 ```
 
-### 5. App mobile (web, iOS o Android)
+### 6. App mobile (web, iOS o Android)
 
 ```bash
 pnpm run dev:mobile -- --web      # versión web
@@ -86,12 +102,12 @@ pnpm run dev:mobile -- --android  # emulador Android
 
 ## Configuración
 
-Las credenciales y variables se leen de variables de entorno en el backend:
+Las credenciales se leen de `backend/.env` (usa `.env.example` como plantilla):
 
-| Variable | Valor por defecto | Uso |
+| Variable | Ejemplo | Uso |
 |---|---|---|
-| `DATABASE_URL` | `postgresql://habit_user:habit_pass@localhost:5432/habit_tracker` | Conexión a Postgres |
-| `JWT_SECRET` | `dev-secret-change-me` | Secreto para firmar tokens (¡cámbialo en producción!) |
+| `DATABASE_URL` | `postgresql://usuario:password@host:5432/database` | Conexión a PostgreSQL (Supabase, local con Docker, etc.) |
+| `JWT_SECRET` | `cambia-esto-por-un-secreto-largo` | Secreto para firmar tokens (¡cámbialo!) |
 | `PORT` | `3001` | Puerto del backend |
 
 En la app mobile, la URL del API se configura con:

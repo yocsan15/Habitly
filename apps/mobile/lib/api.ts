@@ -1,5 +1,5 @@
 import { getToken } from "./auth";
-import type { AuthResponse } from "shared-types";
+import type { AuthResponse, CreateHabitRequest, UpdateHabitRequest, Habit } from "shared-types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -30,6 +30,10 @@ async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
     throw new Error(data?.error ?? `Error ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
@@ -39,6 +43,15 @@ export const apiClient = {
   login: (body: { email: string; password: string }) =>
     api<AuthResponse>("/auth/login", { method: "POST", body }),
   health: () => api<{ status: string; userId: string }>("/health/protected"),
+
+  listHabits: () => api<Habit[]>("/habits"),
+  getHabit: (id: string) => api<Habit>(`/habits/${id}`),
+  createHabit: (body: CreateHabitRequest) =>
+    api<Habit>("/habits", { method: "POST", body }),
+  updateHabit: (id: string, body: UpdateHabitRequest) =>
+    api<Habit>(`/habits/${id}`, { method: "PUT", body }),
+  deleteHabit: (id: string) =>
+    api<void>(`/habits/${id}`, { method: "DELETE" }),
 };
 
 export { API_URL };

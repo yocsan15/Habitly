@@ -17,7 +17,10 @@ function RootNavigator() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       {isAuthenticated ? (
-        <Stack.Screen name="(tabs)" />
+        <>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="habit" options={{ presentation: "modal" }} />
+        </>
       ) : (
         <Stack.Screen name="(auth)" />
       )}
