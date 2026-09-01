@@ -52,6 +52,11 @@ export const apiClient = {
     api<Habit>(`/habits/${id}`, { method: "PUT", body }),
   deleteHabit: (id: string) =>
     api<void>(`/habits/${id}`, { method: "DELETE" }),
+  toggleLog: (id: string, date: string, timezoneOffset: number) =>
+    api<{ action: string }>(`/habits/${id}/log`, {
+      method: "POST",
+      body: { date, timezoneOffset },
+    }),
 };
 
 export { API_URL };

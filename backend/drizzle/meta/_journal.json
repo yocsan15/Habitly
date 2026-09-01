@@ -15,6 +15,13 @@
       "when": 1788215140437,
       "tag": "0001_volatile_ultimatum",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788277534723,
+      "tag": "0002_solid_cyclops",
+      "breakpoints": true
     }
   ]
 }

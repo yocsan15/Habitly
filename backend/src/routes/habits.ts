@@ -1,8 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
-  listHabits,
-  getHabit,
+  listHabitsWithLogs,
+  getHabitWithLogs,
+  toggleLog,
+  todayDateStr,
+} from "../services/habitLogs.js";
+import {
   createHabit,
   updateHabit,
   deleteHabit,
@@ -27,6 +31,11 @@ const updateSchema = z.object({
   active: z.boolean().optional(),
 });
 
+const logSchema = z.object({
+  date: z.string(),
+  timezoneOffset: z.number(),
+});
+
 function userId(request: FastifyRequest): string {
   return request.user.userId;
 }
@@ -35,20 +44,52 @@ function idParams(request: FastifyRequest): string {
   return (request.params as { id: string }).id;
 }
 
+function clientToday(request: FastifyRequest): string {
+  const body = (request.body ?? {}) as { date?: string; timezoneOffset?: number };
+  if (body.date) {
+    return body.date;
+  }
+  const offset = typeof body.timezoneOffset === "number" ? body.timezoneOffset : 0;
+  return todayDateStr(offset);
+}
+
 export async function habitRoutes(app: FastifyInstance): Promise<void> {
   app.get("/habits", { onRequest: [requireAuth] }, async (request) => {
-    return listHabits(userId(request));
+    return listHabitsWithLogs(userId(request), clientToday(request));
   });
 
   app.get(
     "/habits/:id",
     { onRequest: [requireAuth] },
     async (request, reply) => {
-      const habit = await getHabit(userId(request), idParams(request));
+      const habit = await getHabitWithLogs(
+        userId(request),
+        idParams(request),
+        clientToday(request),
+      );
       if (!habit) {
         return reply.code(404).send({ error: "Hábito no encontrado" });
       }
       return habit;
+    },
+  );
+
+  app.post(
+    "/habits/:id/log",
+    { onRequest: [requireAuth] },
+    async (request, reply) => {
+      const parsed = logSchema.safeParse(request.body ?? {});
+      const result = await toggleLog(
+        userId(request),
+        idParams(request),
+        parsed.success && parsed.data.date
+          ? parsed.data.date
+          : todayDateStr(parsed.success ? parsed.data.timezoneOffset : 0),
+      );
+      if (!result.ok) {
+        return reply.code(404).send({ error: "Hábito no encontrado" });
+      }
+      return { action: result.action };
     },
   );
 
@@ -60,7 +101,13 @@ export async function habitRoutes(app: FastifyInstance): Promise<void> {
       if (!parsed.success) {
         return reply.code(400).send({ error: "Datos inválidos" });
       }
-      return createHabit(userId(request), parsed.data);
+      const created = await createHabit(userId(request), parsed.data);
+      const full = await getHabitWithLogs(
+        userId(request),
+        created.id,
+        clientToday(request),
+      );
+      return full;
     },
   );
 
@@ -72,11 +119,16 @@ export async function habitRoutes(app: FastifyInstance): Promise<void> {
       if (!parsed.success) {
         return reply.code(400).send({ error: "Datos inválidos" });
       }
-      const habit = await updateHabit(userId(request), idParams(request), parsed.data);
-      if (!habit) {
+      const updated = await updateHabit(userId(request), idParams(request), parsed.data);
+      if (!updated) {
         return reply.code(404).send({ error: "Hábito no encontrado" });
       }
-      return habit;
+      const full = await getHabitWithLogs(
+        userId(request),
+        updated.id,
+        clientToday(request),
+      );
+      return full;
     },
   );
 

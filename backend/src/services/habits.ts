@@ -1,44 +1,14 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { habits } from "../db/schema/index.js";
-import type { CreateHabitRequest, UpdateHabitRequest, Habit } from "shared-types";
+import type { CreateHabitRequest, UpdateHabitRequest } from "shared-types";
 
-function serialize(habit: typeof habits.$inferSelect): Habit {
-  return {
-    id: habit.id,
-    name: habit.name,
-    description: habit.description,
-    frequency: habit.frequency,
-    color: habit.color,
-    icon: habit.icon,
-    active: habit.active,
-    createdAt: habit.createdAt.toISOString(),
-  };
-}
-
-export async function listHabits(userId: string): Promise<Habit[]> {
-  const rows = await db
-    .select()
-    .from(habits)
-    .where(and(eq(habits.userId, userId), eq(habits.active, true)))
-    .orderBy(habits.createdAt);
-
-  return rows.map(serialize);
-}
-
-export async function getHabit(userId: string, habitId: string): Promise<Habit | null> {
-  const rows = await db
-    .select()
-    .from(habits)
-    .where(and(eq(habits.id, habitId), eq(habits.userId, userId)));
-
-  return rows[0] ? serialize(rows[0]) : null;
-}
+export type HabitRow = typeof habits.$inferSelect;
 
 export async function createHabit(
   userId: string,
   input: CreateHabitRequest,
-): Promise<Habit> {
+): Promise<HabitRow> {
   const [row] = await db
     .insert(habits)
     .values({
@@ -51,20 +21,15 @@ export async function createHabit(
     })
     .returning();
 
-  return serialize(row);
+  return row;
 }
 
 export async function updateHabit(
   userId: string,
   habitId: string,
   input: UpdateHabitRequest,
-): Promise<Habit | null> {
-  const existing = await getHabit(userId, habitId);
-  if (!existing) {
-    return null;
-  }
-
-  const [row] = await db
+): Promise<HabitRow | null> {
+  const rows = await db
     .update(habits)
     .set({
       ...(input.name !== undefined ? { name: input.name } : {}),
@@ -77,7 +42,7 @@ export async function updateHabit(
     .where(and(eq(habits.id, habitId), eq(habits.userId, userId)))
     .returning();
 
-  return serialize(row);
+  return rows[0] ?? null;
 }
 
 export async function deleteHabit(userId: string, habitId: string): Promise<boolean> {

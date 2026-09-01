@@ -25,6 +25,13 @@ export interface ApiError {
 
 export type HabitFrequency = "daily" | "weekly" | "custom";
 
+export interface HabitLog {
+  id: string;
+  habitId: string;
+  date: string;
+  createdAt: string;
+}
+
 export interface Habit {
   id: string;
   name: string;
@@ -34,6 +41,10 @@ export interface Habit {
   icon: string;
   active: boolean;
   createdAt: string;
+  streak: number;
+  todayDone: boolean;
+  lastLogDate: string | null;
+  weekLogs: HabitLog[];
 }
 
 export interface CreateHabitRequest {
