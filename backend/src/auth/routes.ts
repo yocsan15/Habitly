@@ -20,7 +20,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Body: AuthResponse }>("/auth/register", async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "Datos inválidos" });
+      const issue = parsed.error.issues[0];
+      const message =
+        issue?.path[0] === "password"
+          ? "La contraseña debe tener al menos 8 caracteres"
+          : "Email o contraseña inválidos";
+      return reply.code(400).send({ error: message });
     }
 
     const { email, password } = parsed.data;
