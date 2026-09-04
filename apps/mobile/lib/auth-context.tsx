@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { getToken, saveToken, clearToken } from "@/lib/auth";
-import { apiClient } from "@/lib/api";
 import type { User } from "shared-types";
 
 interface AuthContextValue {
@@ -19,17 +18,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const token = await getToken();
-      if (token) {
-        try {
-          const res = await apiClient.health();
-          setUser({ id: res.userId, email: "", createdAt: "" } as User);
-        } catch {
-          await clearToken();
-          setUser(null);
+      try {
+        const token = await getToken();
+        if (token) {
+          setUser({ id: "validating", email: "", createdAt: "" } as User);
         }
+      } catch {
+        await clearToken();
+        setUser(null);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     })();
   }, []);
 

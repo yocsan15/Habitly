@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import type { Habit } from "shared-types";
 
 function todayIso(): string {
@@ -21,6 +22,7 @@ function todayIso(): string {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { logout } = useAuth();
   const [habits, setHabits] = useState<Habit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,10 +36,14 @@ export default function HomeScreen() {
           if (!cancelled) setHabits(data);
         })
         .catch((e) => {
-          if (!cancelled) {
-            setError(e instanceof Error ? e.message : "Error al cargar hábitos");
-            setHabits([]);
+          if (cancelled) return;
+          const msg = e instanceof Error ? e.message : "";
+          if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("Authorization")) {
+            logout();
+            return;
           }
+          setError(msg || "Error al cargar hábitos");
+          setHabits([]);
         });
       return () => {
         cancelled = true;

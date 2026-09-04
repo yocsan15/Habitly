@@ -9,7 +9,12 @@ import { env } from "./env.js";
 const app = Fastify({ logger: true });
 
 await registerJwt(app);
-await app.register(cors, { origin: true });
+await app.register(cors, {
+  origin: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+});
 await authRoutes(app);
 await healthRoutes(app);
 await habitRoutes(app);

@@ -20,7 +20,12 @@ export async function getToken(): Promise<string | null> {
     if (typeof window === "undefined") {
       return null;
     }
-    return window.localStorage.getItem(TOKEN_KEY);
+    const raw = window.localStorage.getItem(TOKEN_KEY);
+    if (!raw || raw === "null" || raw === "undefined" || raw.length < 10) {
+      window.localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    return raw;
   }
   return SecureStore.getItemAsync(TOKEN_KEY);
 }
