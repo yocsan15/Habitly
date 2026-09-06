@@ -1,7 +1,9 @@
-import { getToken } from "./auth";
+import { getToken, clearToken } from "./auth";
 import type { AuthResponse, CreateHabitRequest, UpdateHabitRequest, Habit } from "shared-types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001";
+
+export const AUTH_UNAUTHORIZED_EVENT = "auth:unauthorized";
 
 interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
@@ -11,9 +13,12 @@ async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const token = await getToken();
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
+
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -25,9 +30,21 @@ async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
+  if (response.status === 401) {
+    await clearToken();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+    }
+  }
+
   if (!response.ok) {
     const data = await response.json().catch(() => null);
-    throw new Error(data?.error ?? `Error ${response.status}`);
+    const message =
+      data?.message ?? data?.error ?? `Error ${response.status}`;
+    if (response.status === 401) {
+      throw new Error("Sesión expirada. Inicia sesión de nuevo.");
+    }
+    throw new Error(message);
   }
 
   if (response.status === 204) {

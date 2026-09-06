@@ -65,6 +65,47 @@ function computeStreak(
   return streak;
 }
 
+function computeLongestStreak(
+  habit: { frequency: string },
+  dates: string[],
+): number {
+  const set = new Set(dates);
+  if (set.size === 0) return 0;
+
+  const sorted = [...set].sort();
+  const step = habit.frequency === "daily" ? 1 : 7;
+
+  let longest = 0;
+  let current = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    if (addDays(sorted[i - 1], step) === sorted[i]) {
+      current += 1;
+    } else {
+      longest = Math.max(longest, current);
+      current = 1;
+    }
+  }
+  return Math.max(longest, current);
+}
+
+function computeCompletionRate(
+  row: typeof habits.$inferSelect,
+  dates: string[],
+  today: string,
+): number {
+  const created = toDateStr(row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt));
+  if (created > today) return 0;
+
+  let possible = 1;
+  let cursor = created;
+  while (cursor < today) {
+    possible += 1;
+    cursor = addDays(cursor, 1);
+  }
+  if (possible <= 0) return 0;
+  return Math.min(100, Math.round((dates.length / possible) * 100));
+}
+
 async function logsFor(habitId: string): Promise<typeof habitLogs.$inferSelect[]> {
   return db
     .select()
@@ -88,6 +129,7 @@ async function attachLogs(
         .filter((l) => l.date >= addDays(today, -6) && l.date <= today)
         .map(serializeLog);
       const streak = computeStreak(row, dates, today);
+      const logDates = [...dates].sort();
       return {
         id: row.id,
         name: row.name,
@@ -101,6 +143,11 @@ async function attachLogs(
         todayDone,
         lastLogDate,
         weekLogs,
+        logDates,
+        weeklyGoal: row.weeklyGoal ?? null,
+        streakGoal: row.streakGoal ?? null,
+        longestStreak: computeLongestStreak(row, dates),
+        completionRate: computeCompletionRate(row, dates, today),
       };
     }),
   );

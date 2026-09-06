@@ -23,5 +23,7 @@ export const habits = pgTable("habits", {
   color: varchar("color", { length: 20 }).notNull().default("#26519e"),
   icon: varchar("icon", { length: 4 }).notNull().default("✅"),
   active: boolean("active").notNull().default(true),
+  weeklyGoal: integer("weekly_goal"),
+  streakGoal: integer("streak_goal"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

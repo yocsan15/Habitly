@@ -18,6 +18,8 @@ export async function createHabit(
       frequency: input.frequency ?? "daily",
       color: input.color ?? "#26519e",
       icon: input.icon ?? "✅",
+      weeklyGoal: input.weeklyGoal ?? null,
+      streakGoal: input.streakGoal ?? null,
     })
     .returning();
 
@@ -38,6 +40,8 @@ export async function updateHabit(
       ...(input.color !== undefined ? { color: input.color } : {}),
       ...(input.icon !== undefined ? { icon: input.icon } : {}),
       ...(input.active !== undefined ? { active: input.active } : {}),
+      ...(input.weeklyGoal !== undefined ? { weeklyGoal: input.weeklyGoal } : {}),
+      ...(input.streakGoal !== undefined ? { streakGoal: input.streakGoal } : {}),
     })
     .where(and(eq(habits.id, habitId), eq(habits.userId, userId)))
     .returning();

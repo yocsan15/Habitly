@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,18 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { useTheme, type ThemeColors } from "@/lib/theme";
 import type { Habit, HabitFrequency } from "shared-types";
 
-const COLORS = ["#26519e", "#e74c3c", "#27ae60", "#f39c12", "#8e44ad", "#16a085"];
-const ICONS = ["✅", "🏃", "💧", "📚", "🧘", "💪", "🛌", "🥗"];
+const COLORS = [
+  "#26519e", "#e74c3c", "#27ae60", "#f39c12", "#8e44ad", "#16a085",
+  "#e84393", "#0984e3", "#d63031", "#00b894", "#6c5ce7", "#fdcb6e",
+];
+const ICONS = [
+  "✅", "🏃", "💧", "📚", "🧘", "💪", "🛌", "🥗",
+  "🍎", "🏋️", "🎸", "🎨", "✍️", "🧹", "🚭", "💰",
+  "☀️", "🧠", "🚴", "🐶", "🌱", "🧑‍💻", "🎯", "📵",
+];
 
 interface HabitFormProps {
   initial?: Habit;
@@ -20,16 +28,22 @@ interface HabitFormProps {
     frequency: HabitFrequency;
     color: string;
     icon: string;
+    weeklyGoal?: number | null;
+    streakGoal?: number | null;
   }) => Promise<void>;
   submitLabel: string;
 }
 
 export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [frequency, setFrequency] = useState<HabitFrequency>(initial?.frequency ?? "daily");
   const [color, setColor] = useState(initial?.color ?? COLORS[0]);
   const [icon, setIcon] = useState(initial?.icon ?? ICONS[0]);
+  const [weeklyGoal, setWeeklyGoal] = useState(initial?.weeklyGoal?.toString() ?? "");
+  const [streakGoal, setStreakGoal] = useState(initial?.streakGoal?.toString() ?? "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -37,6 +51,16 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
     setError(null);
     if (!name.trim()) {
       setError("El nombre es obligatorio");
+      return;
+    }
+    const parsedWeekly = weeklyGoal.trim() === "" ? null : Number(weeklyGoal);
+    const parsedStreak = streakGoal.trim() === "" ? null : Number(streakGoal);
+    if (parsedWeekly !== null && (!Number.isInteger(parsedWeekly) || parsedWeekly < 1 || parsedWeekly > 7)) {
+      setError("La meta semanal debe ser un número entre 1 y 7");
+      return;
+    }
+    if (parsedStreak !== null && (!Number.isInteger(parsedStreak) || parsedStreak < 1)) {
+      setError("La meta de racha debe ser un número mayor a 0");
       return;
     }
     setSubmitting(true);
@@ -47,6 +71,8 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
         frequency,
         color,
         icon,
+        weeklyGoal: parsedWeekly,
+        streakGoal: parsedStreak,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar");
@@ -60,6 +86,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
       <TextInput
         style={styles.input}
         placeholder="Ej. Beber 2L de agua"
+        placeholderTextColor={colors.placeholderText}
         value={name}
         onChangeText={setName}
       />
@@ -68,6 +95,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
       <TextInput
         style={styles.input}
         placeholder="Detalle del hábito"
+        placeholderTextColor={colors.placeholderText}
         value={description}
         onChangeText={setDescription}
         multiline
@@ -112,6 +140,27 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
         ))}
       </View>
 
+      <Text style={styles.label}>Meta semanal (días por semana)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej. 5 (déjalo vacío para no fijar meta)"
+        placeholderTextColor={colors.placeholderText}
+        value={weeklyGoal}
+        onChangeText={setWeeklyGoal}
+        keyboardType="number-pad"
+        maxLength={1}
+      />
+
+      <Text style={styles.label}>Meta de racha (días seguidos)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej. 30 (déjalo vacío para no fijar meta)"
+        placeholderTextColor={colors.placeholderText}
+        value={streakGoal}
+        onChangeText={setStreakGoal}
+        keyboardType="number-pad"
+      />
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Pressable
@@ -129,92 +178,99 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  row: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 4,
-  },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    marginBottom: 4,
-  },
-  chipActive: {
-    backgroundColor: "#26519e",
-    borderColor: "#26519e",
-  },
-  chipText: {
-    color: "#333",
-  },
-  chipTextActive: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  swatch: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  swatchActive: {
-    borderWidth: 3,
-    borderColor: "#333",
-  },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    marginBottom: 4,
-  },
-  iconBtnActive: {
-    borderColor: "#26519e",
-    borderWidth: 2,
-    backgroundColor: "#eef3fb",
-  },
-  iconText: {
-    fontSize: 24,
-  },
-  error: {
-    color: "#c0392b",
-    marginTop: 12,
-  },
-  button: {
-    backgroundColor: "#26519e",
-    borderRadius: 8,
-    padding: 14,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});
+const createStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      padding: 20,
+      backgroundColor: c.background,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: "600",
+      marginBottom: 6,
+      marginTop: 12,
+      color: c.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+      backgroundColor: c.inputBg,
+      color: c.text,
+    },
+    row: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: 4,
+    },
+    chip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      marginBottom: 4,
+      backgroundColor: c.chipBg,
+    },
+    chipActive: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    chipText: {
+      color: c.textSecondary,
+    },
+    chipTextActive: {
+      color: "#fff",
+      fontWeight: "600",
+    },
+    swatch: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+    },
+    swatchActive: {
+      borderWidth: 3,
+      borderColor: c.text,
+    },
+    iconBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      marginBottom: 4,
+      backgroundColor: c.chipBg,
+    },
+    iconBtnActive: {
+      borderColor: c.primary,
+      borderWidth: 2,
+      backgroundColor: c.primaryLight,
+    },
+    iconText: {
+      fontSize: 24,
+    },
+    error: {
+      color: c.danger,
+      marginTop: 12,
+    },
+    button: {
+      backgroundColor: c.primary,
+      borderRadius: 8,
+      padding: 14,
+      alignItems: "center",
+      marginTop: 20,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+  });

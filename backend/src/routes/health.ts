@@ -2,6 +2,14 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { requireAuth } from "../auth/guard.js";
 
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
+  app.get("/", async () => {
+    return {
+      name: "Habitly API",
+      status: "ok",
+      endpoints: ["/health", "/health/protected", "/auth/register", "/auth/login", "/habits"],
+    };
+  });
+
   app.get("/health/protected", { onRequest: [requireAuth] }, async (request: FastifyRequest) => {
     return {
       status: "ok",

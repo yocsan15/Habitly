@@ -20,6 +20,8 @@ const createSchema = z.object({
   frequency: z.enum(["daily", "weekly", "custom"]).optional(),
   color: z.string().max(20).optional(),
   icon: z.string().max(4).optional(),
+  weeklyGoal: z.number().int().min(1).max(7).nullable().optional(),
+  streakGoal: z.number().int().min(1).max(3650).nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -29,6 +31,8 @@ const updateSchema = z.object({
   color: z.string().max(20).optional(),
   icon: z.string().max(4).optional(),
   active: z.boolean().optional(),
+  weeklyGoal: z.number().int().min(1).max(7).nullable().optional(),
+  streakGoal: z.number().int().min(1).max(3650).nullable().optional(),
 });
 
 const logSchema = z.object({

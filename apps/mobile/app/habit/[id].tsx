@@ -3,11 +3,14 @@ import { View, ActivityIndicator, ScrollView, Text, StyleSheet } from "react-nat
 import { useLocalSearchParams, useRouter } from "expo-router";
 import HabitForm from "@/components/habit-form";
 import { apiClient } from "@/lib/api";
+import { useTheme, type ThemeColors } from "@/lib/theme";
 import type { Habit } from "shared-types";
 
 export default function EditHabitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [habit, setHabit] = useState<Habit | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,19 +51,26 @@ export default function EditHabitScreen() {
   if (!habit) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView>
+    <ScrollView style={styles.container}>
       <HabitForm initial={habit} onSubmit={handleSubmit} submitLabel="Guardar Cambios" />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  error: { color: "#c0392b" },
-});
+const createStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    center: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: c.background,
+    },
+    error: { color: c.danger },
+  });

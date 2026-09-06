@@ -21,7 +21,7 @@ export async function getToken(): Promise<string | null> {
       return null;
     }
     const raw = window.localStorage.getItem(TOKEN_KEY);
-    if (!raw || raw === "null" || raw === "undefined" || raw.length < 10) {
+    if (!raw || raw === "null" || raw === "undefined" || raw.length < 10 || raw.split(".").length !== 3) {
       window.localStorage.removeItem(TOKEN_KEY);
       return null;
     }

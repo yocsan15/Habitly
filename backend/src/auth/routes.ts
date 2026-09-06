@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users } from "../db/schema/index.js";
 import { hashPassword, verifyPassword } from "./password.js";
-import type { AuthResponse } from "shared-types";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -17,7 +16,7 @@ const loginSchema = z.object({
 });
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  app.post<{ Body: AuthResponse }>("/auth/register", async (request, reply) => {
+  app.post<{ Body: z.infer<typeof registerSchema> }>("/auth/register", async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
@@ -45,7 +44,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       .values({ email, passwordHash })
       .returning();
 
-    const token = app.jwt.sign({ userId: created.id });
+    const token = app.jwt.sign({ userId: created.id }, { expiresIn: "7d" });
 
     return {
       token,
@@ -53,7 +52,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  app.post<{ Body: AuthResponse }>("/auth/login", async (request, reply) => {
+  app.post<{ Body: z.infer<typeof loginSchema> }>("/auth/login", async (request, reply) => {
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "Datos inválidos" });

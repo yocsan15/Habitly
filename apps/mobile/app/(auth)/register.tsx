@@ -1,16 +1,21 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { apiClient } from "@/lib/api";
+import { useTheme, type ThemeColors } from "@/lib/theme";
 
 export default function RegisterScreen() {
+  const router = useRouter();
   const { setSession } = useAuth();
+  const { colors } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleRegister = async () => {
     setError(null);
@@ -28,6 +33,7 @@ export default function RegisterScreen() {
     try {
       const res = await apiClient.register({ email, password });
       await setSession(res.user, res.token);
+      router.replace("/");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al registrarse");
     } finally {
@@ -83,48 +89,53 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    fontSize: 16,
-  },
-  error: {
-    color: "red",
-    marginBottom: 12,
-  },
-  button: {
-    backgroundColor: "#26519e",
-    borderRadius: 8,
-    padding: 14,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  link: {
-    textAlign: "center",
-    color: "#26519e",
-    marginTop: 8,
-  },
-});
+const createStyles = (c: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: "center",
+      padding: 20,
+      backgroundColor: c.background,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "bold",
+      marginBottom: 20,
+      textAlign: "center",
+      color: c.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 12,
+      fontSize: 16,
+      backgroundColor: c.inputBg,
+      color: c.text,
+    },
+    error: {
+      color: c.danger,
+      marginBottom: 12,
+    },
+    button: {
+      backgroundColor: c.primary,
+      borderRadius: 8,
+      padding: 14,
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    link: {
+      textAlign: "center",
+      color: c.primary,
+      marginTop: 8,
+    },
+  });

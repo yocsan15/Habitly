@@ -45,6 +45,11 @@ export interface Habit {
   todayDone: boolean;
   lastLogDate: string | null;
   weekLogs: HabitLog[];
+  logDates: string[];
+  weeklyGoal: number | null;
+  streakGoal: number | null;
+  longestStreak: number;
+  completionRate: number;
 }
 
 export interface CreateHabitRequest {
@@ -53,6 +58,8 @@ export interface CreateHabitRequest {
   frequency?: HabitFrequency;
   color?: string;
   icon?: string;
+  weeklyGoal?: number | null;
+  streakGoal?: number | null;
 }
 
 export interface UpdateHabitRequest {
@@ -62,4 +69,6 @@ export interface UpdateHabitRequest {
   color?: string;
   icon?: string;
   active?: boolean;
+  weeklyGoal?: number | null;
+  streakGoal?: number | null;
 }
