@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { habits, habitLogs } from "../db/schema/index.js";
 import type { Habit, HabitLog } from "shared-types";
@@ -19,8 +19,10 @@ function addDays(dateStr: string, days: number): string {
   return toDateStr(date);
 }
 
-function completedDates(logs: { date: string }[]): string[] {
-  return logs.map((l) => l.date);
+function toNum(value: string | null): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function serializeLog(log: typeof habitLogs.$inferSelect): HabitLog {
@@ -29,6 +31,8 @@ function serializeLog(log: typeof habitLogs.$inferSelect): HabitLog {
     habitId: log.habitId,
     date: log.date,
     createdAt: log.createdAt.toISOString(),
+    note: log.note ?? null,
+    quantity: toNum(log.quantity),
   };
 }
 
@@ -106,11 +110,36 @@ function computeCompletionRate(
   return Math.min(100, Math.round((dates.length / possible) * 100));
 }
 
+function monthPrefix(dateStr: string): string {
+  return dateStr.slice(0, 7);
+}
+
+function computeMonthlyMetrics(
+  logs: typeof habitLogs.$inferSelect[],
+  today: string,
+  monthlyGoal: number | null,
+  volumeGoal: number | null,
+): { monthlyCount: number; monthlyVolume: number } {
+  const prefix = monthPrefix(today);
+  const inMonth = logs.filter((l) => l.date.startsWith(prefix));
+  const monthlyCount = inMonth.length;
+  const monthlyVolume = inMonth.reduce((sum, l) => {
+    const v = toNum(l.quantity);
+    return sum + (v ?? 1);
+  }, 0);
+  // si no hay meta de volumen, el volumen mensual solo suma cantidades explícitas
+  if (!volumeGoal) {
+    return { monthlyCount, monthlyVolume: inMonth.reduce((sum, l) => sum + (toNum(l.quantity) ?? 0), 0) };
+  }
+  return { monthlyCount, monthlyVolume };
+}
+
 async function logsFor(habitId: string): Promise<typeof habitLogs.$inferSelect[]> {
   return db
     .select()
     .from(habitLogs)
-    .where(eq(habitLogs.habitId, habitId));
+    .where(eq(habitLogs.habitId, habitId))
+    .orderBy(desc(habitLogs.date));
 }
 
 async function attachLogs(
@@ -120,16 +149,20 @@ async function attachLogs(
   return Promise.all(
     rows.map(async (row) => {
       const logs = await logsFor(row.id);
-      const dates = completedDates(logs);
+      const dates = logs.map((l) => l.date);
       const todayDone = dates.includes(today);
-      const lastLogDate = logs.length
-        ? [...logs].sort((a, b) => (a.date < b.date ? 1 : -1))[0].date
-        : null;
+      const lastLog = logs[0];
       const weekLogs = logs
         .filter((l) => l.date >= addDays(today, -6) && l.date <= today)
         .map(serializeLog);
       const streak = computeStreak(row, dates, today);
       const logDates = [...dates].sort();
+      const { monthlyCount, monthlyVolume } = computeMonthlyMetrics(
+        logs,
+        today,
+        row.monthlyGoal,
+        row.volumeGoal !== null ? toNum(row.volumeGoal) : null,
+      );
       return {
         id: row.id,
         name: row.name,
@@ -141,13 +174,20 @@ async function attachLogs(
         createdAt: row.createdAt.toISOString(),
         streak,
         todayDone,
-        lastLogDate,
+        lastLogDate: lastLog?.date ?? null,
         weekLogs,
         logDates,
+        allLogs: logs.map(serializeLog),
         weeklyGoal: row.weeklyGoal ?? null,
         streakGoal: row.streakGoal ?? null,
+        monthlyGoal: row.monthlyGoal ?? null,
+        volumeGoal: row.volumeGoal !== null ? toNum(row.volumeGoal) : null,
+        volumeUnit: row.volumeUnit ?? null,
+        reminderTime: row.reminderTime ?? null,
         longestStreak: computeLongestStreak(row, dates),
         completionRate: computeCompletionRate(row, dates, today),
+        monthlyCount,
+        monthlyVolume,
       };
     }),
   );
@@ -161,7 +201,7 @@ export async function listHabitsWithLogs(
     .select()
     .from(habits)
     .where(and(eq(habits.userId, userId), eq(habits.active, true)))
-    .orderBy(habits.createdAt);
+    .orderBy(habits.position, habits.createdAt);
   return attachLogs(rows, today);
 }
 
@@ -181,7 +221,13 @@ export async function getHabitWithLogs(
   return result;
 }
 
-export async function toggleLog(userId: string, habitId: string, date: string) {
+export async function toggleLog(
+  userId: string,
+  habitId: string,
+  date: string,
+  note?: string | null,
+  quantity?: number | null,
+) {
   const habit = await db
     .select()
     .from(habits)
@@ -192,7 +238,7 @@ export async function toggleLog(userId: string, habitId: string, date: string) {
   }
 
   const existing = await db
-    .select({ id: habitLogs.id })
+    .select()
     .from(habitLogs)
     .where(and(eq(habitLogs.habitId, habitId), eq(habitLogs.date, date)))
     .limit(1);
@@ -204,8 +250,88 @@ export async function toggleLog(userId: string, habitId: string, date: string) {
     return { ok: true as const, action: "removed" as const };
   }
 
-  await db.insert(habitLogs).values({ habitId, date });
+  await db.insert(habitLogs).values({
+    habitId,
+    date,
+    note: note ?? null,
+    quantity: quantity !== null && quantity !== undefined ? String(quantity) : null,
+  });
   return { ok: true as const, action: "added" as const };
+}
+
+export async function updateLog(
+  userId: string,
+  habitId: string,
+  date: string,
+  patch: { note?: string | null; quantity?: number | null },
+): Promise<{ ok: boolean; reason?: string }> {
+  const habit = await db
+    .select({ id: habits.id })
+    .from(habits)
+    .where(and(eq(habits.id, habitId), eq(habits.userId, userId)))
+    .limit(1);
+  if (!habit[0]) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const existing = await db
+    .select()
+    .from(habitLogs)
+    .where(and(eq(habitLogs.habitId, habitId), eq(habitLogs.date, date)))
+    .limit(1);
+
+  if (!existing[0]) {
+    // crear el log si aún no existe (nota sin marcar el hábito como hecho)
+    await db.insert(habitLogs).values({
+      habitId,
+      date,
+      note: patch.note ?? null,
+      quantity:
+        patch.quantity !== null && patch.quantity !== undefined
+          ? String(patch.quantity)
+          : null,
+    });
+    return { ok: true };
+  }
+
+  await db
+    .update(habitLogs)
+    .set({
+      ...(patch.note !== undefined ? { note: patch.note } : {}),
+      ...(patch.quantity !== undefined
+        ? { quantity: patch.quantity !== null ? String(patch.quantity) : null }
+        : {}),
+    })
+    .where(eq(habitLogs.id, existing[0].id));
+
+  return { ok: true };
+}
+
+export async function reorderHabits(
+  userId: string,
+  orderedIds: string[],
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: habits.id })
+    .from(habits)
+    .where(and(eq(habits.userId, userId), eq(habits.active, true)));
+
+  const owned = new Set(rows.map((r) => r.id));
+  const valid = orderedIds.filter((id) => owned.has(id));
+  // añadir al final los que no vinieron
+  for (const row of rows) {
+    if (!valid.includes(row.id)) valid.push(row.id);
+  }
+
+  await Promise.all(
+    valid.map((id, index) =>
+      db
+        .update(habits)
+        .set({ position: index })
+        .where(eq(habits.id, id)),
+    ),
+  );
+  return true;
 }
 
 export function todayDateStr(offsetMinutes: number): string {

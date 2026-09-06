@@ -5,10 +5,20 @@ import type { CreateHabitRequest, UpdateHabitRequest } from "shared-types";
 
 export type HabitRow = typeof habits.$inferSelect;
 
+async function nextPosition(userId: string): Promise<number> {
+  const rows = await db
+    .select({ position: habits.position })
+    .from(habits)
+    .where(eq(habits.userId, userId))
+    .orderBy(habits.position);
+  return rows.length ? (rows[rows.length - 1].position ?? 0) + 1 : 0;
+}
+
 export async function createHabit(
   userId: string,
   input: CreateHabitRequest,
 ): Promise<HabitRow> {
+  const position = await nextPosition(userId);
   const [row] = await db
     .insert(habits)
     .values({
@@ -20,6 +30,14 @@ export async function createHabit(
       icon: input.icon ?? "✅",
       weeklyGoal: input.weeklyGoal ?? null,
       streakGoal: input.streakGoal ?? null,
+      monthlyGoal: input.monthlyGoal ?? null,
+      volumeGoal:
+        input.volumeGoal !== undefined && input.volumeGoal !== null
+          ? String(input.volumeGoal)
+          : null,
+      volumeUnit: input.volumeUnit ?? null,
+      reminderTime: input.reminderTime ?? null,
+      position,
     })
     .returning();
 
@@ -42,6 +60,12 @@ export async function updateHabit(
       ...(input.active !== undefined ? { active: input.active } : {}),
       ...(input.weeklyGoal !== undefined ? { weeklyGoal: input.weeklyGoal } : {}),
       ...(input.streakGoal !== undefined ? { streakGoal: input.streakGoal } : {}),
+      ...(input.monthlyGoal !== undefined ? { monthlyGoal: input.monthlyGoal } : {}),
+      ...(input.volumeGoal !== undefined
+        ? { volumeGoal: input.volumeGoal !== null ? String(input.volumeGoal) : null }
+        : {}),
+      ...(input.volumeUnit !== undefined ? { volumeUnit: input.volumeUnit } : {}),
+      ...(input.reminderTime !== undefined ? { reminderTime: input.reminderTime } : {}),
     })
     .where(and(eq(habits.id, habitId), eq(habits.userId, userId)))
     .returning();

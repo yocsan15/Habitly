@@ -35,6 +35,12 @@ export default function EditHabitScreen() {
     frequency: "daily" | "weekly" | "custom";
     color: string;
     icon: string;
+    weeklyGoal?: number | null;
+    streakGoal?: number | null;
+    monthlyGoal?: number | null;
+    volumeGoal?: number | null;
+    volumeUnit?: string | null;
+    reminderTime?: string | null;
   }) => {
     await apiClient.updateHabit(id, input);
     router.back();

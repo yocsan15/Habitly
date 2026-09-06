@@ -4,6 +4,8 @@ import {
   listHabitsWithLogs,
   getHabitWithLogs,
   toggleLog,
+  updateLog,
+  reorderHabits,
   todayDateStr,
 } from "../services/habitLogs.js";
 import {
@@ -22,6 +24,10 @@ const createSchema = z.object({
   icon: z.string().max(4).optional(),
   weeklyGoal: z.number().int().min(1).max(7).nullable().optional(),
   streakGoal: z.number().int().min(1).max(3650).nullable().optional(),
+  monthlyGoal: z.number().int().min(1).max(80).nullable().optional(),
+  volumeGoal: z.number().positive().max(100000).nullable().optional(),
+  volumeUnit: z.string().max(20).nullable().optional(),
+  reminderTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
 });
 
 const updateSchema = z.object({
@@ -33,11 +39,27 @@ const updateSchema = z.object({
   active: z.boolean().optional(),
   weeklyGoal: z.number().int().min(1).max(7).nullable().optional(),
   streakGoal: z.number().int().min(1).max(3650).nullable().optional(),
+  monthlyGoal: z.number().int().min(1).max(80).nullable().optional(),
+  volumeGoal: z.number().positive().max(100000).nullable().optional(),
+  volumeUnit: z.string().max(20).nullable().optional(),
+  reminderTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
 });
 
 const logSchema = z.object({
   date: z.string(),
   timezoneOffset: z.number(),
+  note: z.string().max(1000).nullable().optional(),
+  quantity: z.number().positive().max(1000000).nullable().optional(),
+});
+
+const patchLogSchema = z.object({
+  date: z.string(),
+  note: z.string().max(1000).nullable().optional(),
+  quantity: z.number().positive().max(1000000).nullable().optional(),
+});
+
+const reorderSchema = z.object({
+  ids: z.array(z.string()).min(1),
 });
 
 function userId(request: FastifyRequest): string {
@@ -83,17 +105,55 @@ export async function habitRoutes(app: FastifyInstance): Promise<void> {
     { onRequest: [requireAuth] },
     async (request, reply) => {
       const parsed = logSchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "Datos inválidos" });
+      }
+      const { date, timezoneOffset, note, quantity } = parsed.data;
       const result = await toggleLog(
         userId(request),
         idParams(request),
-        parsed.success && parsed.data.date
-          ? parsed.data.date
-          : todayDateStr(parsed.success ? parsed.data.timezoneOffset : 0),
+        date || todayDateStr(timezoneOffset),
+        note,
+        quantity,
       );
       if (!result.ok) {
         return reply.code(404).send({ error: "Hábito no encontrado" });
       }
       return { action: result.action };
+    },
+  );
+
+  app.patch(
+    "/habits/:id/log",
+    { onRequest: [requireAuth] },
+    async (request, reply) => {
+      const parsed = patchLogSchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "Datos inválidos" });
+      }
+      const result = await updateLog(
+        userId(request),
+        idParams(request),
+        parsed.data.date,
+        { note: parsed.data.note, quantity: parsed.data.quantity },
+      );
+      if (!result.ok) {
+        return reply.code(404).send({ error: "Hábito no encontrado" });
+      }
+      return { ok: true };
+    },
+  );
+
+  app.post(
+    "/habits/reorder",
+    { onRequest: [requireAuth] },
+    async (request, reply) => {
+      const parsed = reorderSchema.safeParse(request.body ?? {});
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "Datos inválidos" });
+      }
+      await reorderHabits(userId(request), parsed.data.ids);
+      return { ok: true };
     },
   );
 

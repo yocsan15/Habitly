@@ -30,6 +30,8 @@ export interface HabitLog {
   habitId: string;
   date: string;
   createdAt: string;
+  note?: string | null;
+  quantity?: number | null;
 }
 
 export interface Habit {
@@ -48,8 +50,15 @@ export interface Habit {
   logDates: string[];
   weeklyGoal: number | null;
   streakGoal: number | null;
+  monthlyGoal: number | null;
+  volumeGoal: number | null;
+  volumeUnit: string | null;
+  reminderTime: string | null;
   longestStreak: number;
   completionRate: number;
+  monthlyCount: number;
+  monthlyVolume: number;
+  allLogs: HabitLog[];
 }
 
 export interface CreateHabitRequest {
@@ -60,6 +69,10 @@ export interface CreateHabitRequest {
   icon?: string;
   weeklyGoal?: number | null;
   streakGoal?: number | null;
+  monthlyGoal?: number | null;
+  volumeGoal?: number | null;
+  volumeUnit?: string | null;
+  reminderTime?: string | null;
 }
 
 export interface UpdateHabitRequest {
@@ -71,4 +84,8 @@ export interface UpdateHabitRequest {
   active?: boolean;
   weeklyGoal?: number | null;
   streakGoal?: number | null;
+  monthlyGoal?: number | null;
+  volumeGoal?: number | null;
+  volumeUnit?: string | null;
+  reminderTime?: string | null;
 }

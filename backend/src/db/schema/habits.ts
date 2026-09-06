@@ -7,6 +7,7 @@ import {
   text,
   pgEnum,
   integer,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
 
@@ -25,5 +26,10 @@ export const habits = pgTable("habits", {
   active: boolean("active").notNull().default(true),
   weeklyGoal: integer("weekly_goal"),
   streakGoal: integer("streak_goal"),
+  monthlyGoal: integer("monthly_goal"),
+  volumeGoal: numeric("volume_goal", { precision: 10, scale: 2 }),
+  volumeUnit: varchar("volume_unit", { length: 20 }),
+  reminderTime: varchar("reminder_time", { length: 5 }),
+  position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

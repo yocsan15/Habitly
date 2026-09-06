@@ -1,9 +1,10 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users } from "../db/schema/index.js";
 import { hashPassword, verifyPassword } from "./password.js";
+import { requireAuth } from "./guard.js";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -13,6 +14,11 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
 });
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
@@ -81,4 +87,44 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       user: { id: user.id, email: user.email, createdAt: user.createdAt.toISOString() },
     };
   });
+
+  app.post<{ Body: z.infer<typeof changePasswordSchema> }>(
+    "/auth/change-password",
+    { onRequest: [requireAuth] },
+    async (request: FastifyRequest, reply) => {
+      const parsed = changePasswordSchema.safeParse(request.body);
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0];
+        const message =
+          issue?.path[0] === "newPassword"
+            ? "La nueva contraseña debe tener al menos 8 caracteres"
+            : "Datos inválidos";
+        return reply.code(400).send({ error: message });
+      }
+
+      const { currentPassword, newPassword } = parsed.data;
+
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, request.user.userId));
+
+      if (!user) {
+        return reply.code(404).send({ error: "Usuario no encontrado" });
+      }
+
+      const valid = await verifyPassword(currentPassword, user.passwordHash);
+      if (!valid) {
+        return reply.code(401).send({ error: "La contraseña actual es incorrecta" });
+      }
+
+      const passwordHash = await hashPassword(newPassword);
+      await db
+        .update(users)
+        .set({ passwordHash })
+        .where(and(eq(users.id, user.id)));
+
+      return { ok: true };
+    },
+  );
 }

@@ -30,6 +30,10 @@ interface HabitFormProps {
     icon: string;
     weeklyGoal?: number | null;
     streakGoal?: number | null;
+    monthlyGoal?: number | null;
+    volumeGoal?: number | null;
+    volumeUnit?: string | null;
+    reminderTime?: string | null;
   }) => Promise<void>;
   submitLabel: string;
 }
@@ -44,6 +48,10 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
   const [icon, setIcon] = useState(initial?.icon ?? ICONS[0]);
   const [weeklyGoal, setWeeklyGoal] = useState(initial?.weeklyGoal?.toString() ?? "");
   const [streakGoal, setStreakGoal] = useState(initial?.streakGoal?.toString() ?? "");
+  const [monthlyGoal, setMonthlyGoal] = useState(initial?.monthlyGoal?.toString() ?? "");
+  const [volumeGoal, setVolumeGoal] = useState(initial?.volumeGoal?.toString() ?? "");
+  const [volumeUnit, setVolumeUnit] = useState(initial?.volumeUnit ?? "");
+  const [reminderTime, setReminderTime] = useState(initial?.reminderTime ?? "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,12 +63,30 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
     }
     const parsedWeekly = weeklyGoal.trim() === "" ? null : Number(weeklyGoal);
     const parsedStreak = streakGoal.trim() === "" ? null : Number(streakGoal);
+    const parsedMonthly = monthlyGoal.trim() === "" ? null : Number(monthlyGoal);
+    const parsedVolume = volumeGoal.trim() === "" ? null : Number(volumeGoal);
     if (parsedWeekly !== null && (!Number.isInteger(parsedWeekly) || parsedWeekly < 1 || parsedWeekly > 7)) {
       setError("La meta semanal debe ser un número entre 1 y 7");
       return;
     }
     if (parsedStreak !== null && (!Number.isInteger(parsedStreak) || parsedStreak < 1)) {
       setError("La meta de racha debe ser un número mayor a 0");
+      return;
+    }
+    if (parsedMonthly !== null && (!Number.isInteger(parsedMonthly) || parsedMonthly < 1)) {
+      setError("La meta mensual debe ser un número mayor a 0");
+      return;
+    }
+    if (parsedVolume !== null && (Number.isNaN(parsedVolume) || parsedVolume <= 0)) {
+      setError("La meta de volumen debe ser un número mayor a 0");
+      return;
+    }
+    if (parsedVolume !== null && volumeUnit.trim() === "") {
+      setError("Indica la unidad de la meta de volumen (ej. L, min, km)");
+      return;
+    }
+    if (reminderTime.trim() !== "" && !/^\d{2}:\d{2}$/.test(reminderTime.trim())) {
+      setError("La hora del recordatorio debe estar en formato HH:MM");
       return;
     }
     setSubmitting(true);
@@ -73,6 +99,10 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
         icon,
         weeklyGoal: parsedWeekly,
         streakGoal: parsedStreak,
+        monthlyGoal: parsedMonthly,
+        volumeGoal: parsedVolume,
+        volumeUnit: parsedVolume !== null ? volumeUnit.trim() : null,
+        reminderTime: reminderTime.trim() ? reminderTime.trim() : null,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar");
@@ -161,6 +191,49 @@ export default function HabitForm({ initial, onSubmit, submitLabel }: HabitFormP
         keyboardType="number-pad"
       />
 
+      <Text style={styles.label}>Meta mensual (veces al mes)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej. 20 (déjalo vacío para no fijar meta)"
+        placeholderTextColor={colors.placeholderText}
+        value={monthlyGoal}
+        onChangeText={setMonthlyGoal}
+        keyboardType="number-pad"
+      />
+
+      <Text style={styles.label}>Meta de volumen (opcional)</Text>
+      <View style={styles.row}>
+        <TextInput
+          style={[styles.input, styles.volumeInput]}
+          placeholder="Ej. 2"
+          placeholderTextColor={colors.placeholderText}
+          value={volumeGoal}
+          onChangeText={setVolumeGoal}
+          keyboardType="decimal-pad"
+        />
+        <TextInput
+          style={[styles.input, styles.unitInput]}
+          placeholder="Unidad"
+          placeholderTextColor={colors.placeholderText}
+          value={volumeUnit}
+          onChangeText={setVolumeUnit}
+          maxLength={20}
+        />
+      </View>
+      <Text style={styles.helpText}>
+        Cantidad objetivo al mes (ej. 2L de agua). Al marcar el hábito podrás registrar cuánto hiciste ese día.
+      </Text>
+
+      <Text style={styles.label}>Recordatorio (HH:MM, opcional)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ej. 08:00"
+        placeholderTextColor={colors.placeholderText}
+        value={reminderTime}
+        onChangeText={setReminderTime}
+        maxLength={5}
+      />
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Pressable
@@ -199,6 +272,17 @@ const createStyles = (c: ThemeColors) =>
       fontSize: 16,
       backgroundColor: c.inputBg,
       color: c.text,
+    },
+    volumeInput: {
+      flex: 1,
+    },
+    unitInput: {
+      flex: 1,
+    },
+    helpText: {
+      fontSize: 12,
+      color: c.textMuted,
+      marginTop: 4,
     },
     row: {
       flexDirection: "row",

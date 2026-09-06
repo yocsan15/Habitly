@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import { apiClient } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import ContributionGraph from "@/components/contribution-graph";
 import { useTheme, type ThemeColors } from "@/lib/theme";
+import { startReminderScheduler, stopReminderScheduler } from "@/lib/reminders";
+import { toggleLogOffline, initSyncOnReconnect, pendingCount } from "@/lib/offline";
 import type { Habit } from "shared-types";
 
 function todayIso(): string {
@@ -71,8 +73,30 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const [habits, setHabits] = useState<Habit[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [offlineInfo, setOfflineInfo] = useState<string | null>(null);
+  const [pending, setPending] = useState(0);
 
   const styles = useMemo(() => createStyles(colors), [colors]);
+
+  useEffect(() => {
+    if (!habits) return;
+    startReminderScheduler(habits);
+    return () => stopReminderScheduler();
+  }, [habits]);
+
+  useEffect(() => {
+    setPending(pendingCount());
+    initSyncOnReconnect(() => {
+      setPending(pendingCount());
+      setOfflineInfo(null);
+      apiClient
+        .listHabits()
+        .then(setHabits)
+        .catch(() => {
+          // si sigue sin red, refrescar al reenfocar
+        });
+    });
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,25 +130,39 @@ export default function HomeScreen() {
 
   const handleToggle = async (item: Habit) => {
     setError(null);
+    setOfflineInfo(null);
     try {
       const timezoneOffset = new Date().getTimezoneOffset();
-      const result = await apiClient.toggleLog(item.id, todayIso(), -timezoneOffset);
+      const result = await toggleLogOffline(item.id, todayIso(), -timezoneOffset);
+      const queued = "queued" in result;
+      const added = "action" in result
+        ? result.action === "added"
+        : true; // en modo offline siempre es un marcado (toggle local)
+      if (queued) {
+        setOfflineInfo(
+          "Estás sin conexión. El registro se guardó y se sincronizará al volver.",
+        );
+        setPending(pendingCount());
+      }
       setHabits((prev) =>
         prev
           ? prev.map((h) =>
               h.id === item.id
                 ? {
                     ...h,
-                    todayDone: result.action === "added",
-                    logDates: result.action === "added"
+                    todayDone: added,
+                    logDates: added
                       ? [...new Set([...h.logDates, todayIso()])].sort()
                       : h.logDates.filter((d) => d !== todayIso()),
-                    streak: result.action === "added"
-                      ? h.streak + ((h.todayDone ? 0 : 1))
+                    streak: added
+                      ? h.streak + (h.todayDone ? 0 : 1)
                       : h.streak - (h.todayDone ? 1 : 0),
-                    weekLogs: result.action === "added"
+                    weekLogs: added
                       ? [...h.weekLogs, { id: "tmp", habitId: h.id, date: todayIso(), createdAt: new Date().toISOString() }]
                       : h.weekLogs.filter((l) => l.date !== todayIso()),
+                    monthlyCount: added
+                      ? h.monthlyCount + 1
+                      : Math.max(0, h.monthlyCount - 1),
                   }
                 : h,
             )
@@ -135,7 +173,21 @@ export default function HomeScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: Habit }) => (
+  const handleMove = async (index: number, delta: number) => {
+    setHabits((prev) => {
+      if (!prev) return prev;
+      const next = [...prev];
+      const target = index + delta;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      apiClient.reorderHabits(next.map((h) => h.id)).catch(() => {
+        setError("No se pudo guardar el orden");
+      });
+      return next;
+    });
+  };
+
+  const renderItem = ({ item, index }: { item: Habit; index: number }) => (
     <View style={[styles.card, item.todayDone && styles.cardDone]}>
       <View style={styles.cardTop}>
         <Pressable
@@ -160,6 +212,21 @@ export default function HomeScreen() {
           </View>
         </Pressable>
         <View style={styles.cardActions}>
+          <View style={styles.moveCol}>
+            <Pressable onPress={() => handleMove(index, -1)} hitSlop={6}>
+              <Text style={styles.moveArrow}>▲</Text>
+            </Pressable>
+            <Pressable onPress={() => handleMove(index, 1)} hitSlop={6}>
+              <Text style={styles.moveArrow}>▼</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            style={styles.notesButton}
+            onPress={() => router.push(`/habit-notes?habitId=${item.id}`)}
+            hitSlop={8}
+          >
+            <Text style={styles.notesText}>📝</Text>
+          </Pressable>
           <Pressable
             style={[styles.checkButton, item.todayDone && styles.checkButtonDone]}
             onPress={() => handleToggle(item)}
@@ -179,7 +246,7 @@ export default function HomeScreen() {
         </View>
       </View>
       <ContributionGraph logDates={item.logDates} color={item.color} />
-      {item.weeklyGoal || item.streakGoal ? (
+      {item.weeklyGoal || item.streakGoal || item.monthlyGoal || item.volumeGoal ? (
         <View style={styles.goals}>
           {item.weeklyGoal ? (
             <GoalBar
@@ -197,6 +264,22 @@ export default function HomeScreen() {
               label="Racha"
             />
           ) : null}
+          {item.monthlyGoal ? (
+            <GoalBar
+              progress={item.monthlyCount}
+              goal={item.monthlyGoal}
+              color={item.color}
+              label="Mes"
+            />
+          ) : null}
+          {item.volumeGoal ? (
+            <GoalBar
+              progress={Math.round(item.monthlyVolume * 100) / 100}
+              goal={item.volumeGoal}
+              color={item.color}
+              label={item.volumeUnit || `Vol.`}
+            />
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -204,6 +287,18 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
+      {offlineInfo ? (
+        <View style={styles.offlineBox}>
+          <Text style={styles.offlineText}>{offlineInfo}</Text>
+        </View>
+      ) : null}
+      {pending > 0 ? (
+        <View style={styles.offlineBox}>
+          <Text style={styles.offlineText}>
+            {pending} registro{pending === 1 ? "" : "s"} pendiente{pending === 1 ? "" : "s"} de sincronizar
+          </Text>
+        </View>
+      ) : null}
       {error ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
@@ -302,6 +397,17 @@ const createStyles = (c: ThemeColors) =>
     errorText: {
       color: c.danger,
     },
+    offlineBox: {
+      backgroundColor: c.primaryLight,
+      padding: 12,
+      margin: 12,
+      marginBottom: 0,
+      borderRadius: 8,
+    },
+    offlineText: {
+      color: c.primary,
+      fontSize: 13,
+    },
     list: {
       padding: 16,
       paddingBottom: 96,
@@ -334,6 +440,22 @@ const createStyles = (c: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       marginLeft: 8,
+    },
+    moveCol: {
+      marginRight: 4,
+    },
+    moveArrow: {
+      color: c.textMuted,
+      fontSize: 12,
+      lineHeight: 14,
+      paddingVertical: 1,
+    },
+    notesButton: {
+      padding: 4,
+      marginRight: 8,
+    },
+    notesText: {
+      fontSize: 16,
     },
     icon: {
       fontSize: 28,

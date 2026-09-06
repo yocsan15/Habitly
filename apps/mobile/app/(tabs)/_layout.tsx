@@ -27,6 +27,8 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Hábitos" }} />
       <Tabs.Screen name="goals" options={{ title: "Metas" }} />
+      <Tabs.Screen name="reports" options={{ title: "Reportes" }} />
+      <Tabs.Screen name="achievements" options={{ title: "Logros" }} />
       <Tabs.Screen name="settings" options={{ title: "Ajustes" }} />
     </Tabs>
   );

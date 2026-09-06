@@ -59,6 +59,8 @@ export const apiClient = {
     api<AuthResponse>("/auth/register", { method: "POST", body }),
   login: (body: { email: string; password: string }) =>
     api<AuthResponse>("/auth/login", { method: "POST", body }),
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    api<{ ok: boolean }>("/auth/change-password", { method: "POST", body }),
   health: () => api<{ status: string; userId: string }>("/health/protected"),
 
   listHabits: () => api<Habit[]>("/habits"),
@@ -69,10 +71,28 @@ export const apiClient = {
     api<Habit>(`/habits/${id}`, { method: "PUT", body }),
   deleteHabit: (id: string) =>
     api<void>(`/habits/${id}`, { method: "DELETE" }),
-  toggleLog: (id: string, date: string, timezoneOffset: number) =>
+  toggleLog: (
+    id: string,
+    date: string,
+    timezoneOffset: number,
+    extra?: { note?: string | null; quantity?: number | null },
+  ) =>
     api<{ action: string }>(`/habits/${id}/log`, {
       method: "POST",
-      body: { date, timezoneOffset },
+      body: { date, timezoneOffset, ...extra },
+    }),
+  patchLog: (
+    id: string,
+    date: string,
+    patch: { note?: string | null; quantity?: number | null },
+  ) => api<{ ok: boolean }>(`/habits/${id}/log`, {
+    method: "PATCH",
+    body: { date, ...patch },
+  }),
+  reorderHabits: (ids: string[]) =>
+    api<{ ok: boolean }>("/habits/reorder", {
+      method: "POST",
+      body: { ids },
     }),
 };
 

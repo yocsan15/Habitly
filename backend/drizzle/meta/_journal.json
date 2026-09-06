@@ -29,6 +29,13 @@
       "when": 1788579568276,
       "tag": "0003_add_habit_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788709280974,
+      "tag": "0004_add_notes_goals_reorder_reminder",
+      "breakpoints": true
     }
   ]
 }
