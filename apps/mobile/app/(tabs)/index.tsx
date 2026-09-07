@@ -2,15 +2,18 @@ import { useCallback, useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
-  FlatList,
   Pressable,
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import DraggableFlatList, {
+  type RenderItemParams,
+} from "react-native-draggable-flatlist";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import ContributionGraph from "@/components/contribution-graph";
+import ConfirmDialog from "@/components/confirm-dialog";
 import { useTheme, type ThemeColors } from "@/lib/theme";
 import { startReminderScheduler, stopReminderScheduler } from "@/lib/reminders";
 import { toggleLogOffline, initSyncOnReconnect, pendingCount } from "@/lib/offline";
@@ -75,6 +78,8 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [offlineInfo, setOfflineInfo] = useState<string | null>(null);
   const [pending, setPending] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<Habit | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -118,15 +123,6 @@ export default function HomeScreen() {
       };
     }, []),
   );
-
-  const handleDelete = async (id: string) => {
-    try {
-      await apiClient.deleteHabit(id);
-      setHabits((prev) => (prev ? prev.filter((h) => h.id !== id) : prev));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al eliminar");
-    }
-  };
 
   const handleToggle = async (item: Habit) => {
     setError(null);
@@ -173,22 +169,42 @@ export default function HomeScreen() {
     }
   };
 
-  const handleMove = async (index: number, delta: number) => {
-    setHabits((prev) => {
-      if (!prev) return prev;
-      const next = [...prev];
-      const target = index + delta;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      apiClient.reorderHabits(next.map((h) => h.id)).catch(() => {
-        setError("No se pudo guardar el orden");
-      });
-      return next;
+  const handleDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await apiClient.deleteHabit(pendingDelete.id);
+      setHabits((prev) =>
+        prev ? prev.filter((h) => h.id !== pendingDelete.id) : prev,
+      );
+      setPendingDelete(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al eliminar");
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDragEnd = ({ data }: { data: Habit[] }) => {
+    setHabits(data);
+    apiClient.reorderHabits(data.map((h) => h.id)).catch(() => {
+      setError("No se pudo guardar el orden");
     });
   };
 
-  const renderItem = ({ item, index }: { item: Habit; index: number }) => (
-    <View style={[styles.card, item.todayDone && styles.cardDone]}>
+  const renderItem = ({
+    item,
+    drag,
+    isActive,
+  }: RenderItemParams<Habit>) => (
+    <View
+      style={[
+        styles.card,
+        item.todayDone && styles.cardDone,
+        isActive && styles.cardActive,
+      ]}
+    >
       <View style={styles.cardTop}>
         <Pressable
           style={styles.cardMain}
@@ -212,14 +228,15 @@ export default function HomeScreen() {
           </View>
         </Pressable>
         <View style={styles.cardActions}>
-          <View style={styles.moveCol}>
-            <Pressable onPress={() => handleMove(index, -1)} hitSlop={6}>
-              <Text style={styles.moveArrow}>▲</Text>
-            </Pressable>
-            <Pressable onPress={() => handleMove(index, 1)} hitSlop={6}>
-              <Text style={styles.moveArrow}>▼</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            style={styles.dragHandle}
+            onPress={drag}
+            onLongPress={drag}
+            delayLongPress={200}
+            hitSlop={8}
+          >
+            <Text style={styles.dragHandleText}>⠿</Text>
+          </Pressable>
           <Pressable
             style={styles.notesButton}
             onPress={() => router.push(`/habit-notes?habitId=${item.id}`)}
@@ -238,7 +255,7 @@ export default function HomeScreen() {
           </Pressable>
           <Pressable
             style={styles.deleteButton}
-            onPress={() => handleDelete(item.id)}
+            onPress={() => setPendingDelete(item)}
             hitSlop={8}
           >
             <Text style={styles.deleteText}>✕</Text>
@@ -317,11 +334,13 @@ export default function HomeScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <DraggableFlatList
           data={habits}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          onDragEnd={handleDragEnd}
           contentContainerStyle={styles.list}
+          activationDistance={6}
         />
       )}
 
@@ -331,6 +350,21 @@ export default function HomeScreen() {
       >
         <Text style={styles.fabText}>+</Text>
       </Pressable>
+
+      <ConfirmDialog
+        visible={pendingDelete !== null}
+        title="Eliminar hábito"
+        message={
+          pendingDelete
+            ? `¿Seguro que quieres eliminar "${pendingDelete.name}"? Se perderán sus registros y rachas.`
+            : ""
+        }
+        confirmLabel={deleting ? "Eliminando…" : "Eliminar"}
+        cancelLabel="Cancelar"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </View>
   );
 }
@@ -424,6 +458,14 @@ const createStyles = (c: ThemeColors) =>
       backgroundColor: c.cardDoneBg,
       borderColor: c.cardDoneBorder,
     },
+    cardActive: {
+      borderColor: c.primary,
+      shadowColor: "#000",
+      shadowOpacity: 0.2,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 8,
+    },
     goals: {
       marginTop: 2,
     },
@@ -441,14 +483,15 @@ const createStyles = (c: ThemeColors) =>
       alignItems: "center",
       marginLeft: 8,
     },
-    moveCol: {
+    dragHandle: {
+      paddingHorizontal: 6,
+      paddingVertical: 4,
       marginRight: 4,
     },
-    moveArrow: {
+    dragHandleText: {
       color: c.textMuted,
-      fontSize: 12,
-      lineHeight: 14,
-      paddingVertical: 1,
+      fontSize: 22,
+      lineHeight: 24,
     },
     notesButton: {
       padding: 4,
